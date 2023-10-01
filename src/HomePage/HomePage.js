@@ -1,6 +1,105 @@
-import React from 'react';
+import React , { useEffect, useState, useRef } from 'react';
+import axios from 'axios';
+import Chart from 'chart.js/auto';
+import * as d3 from 'd3';
 
 function HomePage() {
+    const [data, setData] = useState([]);
+    const d3SvgRef = useRef();
+    const chartRef = useRef(null);
+    useEffect(() => {
+        // Make an Axios API request for Chart.js
+        axios.get('http://localhost:2021/budget')
+            .then((response) => {
+                const myBudget = response.data.myBudget;
+                const chartData = myBudget.map((item) => item.budget);
+                const chartLabels = myBudget.map((item) => item.title);
+
+                // Destroy the existing Chart.js chart if it exists
+                if (chartRef.current) {
+                    chartRef.current.destroy();
+                }
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+                const newChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [
+                            {
+                                label: 'Budget',
+                                data: chartData,
+                                backgroundColor: [
+                                    '#ffcd56',
+                                    '#ff6384',
+                                    '#36a2eb',
+                                    '#fd6b19',
+                                ],
+                            },
+                        ],
+                    },
+                });
+                chartRef.current = newChart; // Save the chart instance
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+
+            // Make an Axios API request for D3.js
+            axios.get('http://localhost:2021/data')
+            .then((response) => {
+                const d3Data = response.data;
+
+                // D3.js code for processing and rendering data
+                const svg = d3.select(d3SvgRef.current);
+
+                const margin = { top: 50, right: 50, bottom: 50, left: 50 };
+                const width = 550 - margin.left - margin.right;
+                const height = 350 - margin.top - margin.bottom;
+
+                const x = d3.scaleBand()
+                    .range([0, width])
+                    .domain(d3Data.map((d) => d.Data))
+                    .padding(0.2);
+
+                const y = d3.scaleLinear()
+                    .domain([0, 200000])
+                    .range([height, 0]);
+
+                const xAxis = d3.axisBottom(x);
+                const yAxis = d3.axisLeft(y);
+
+                svg.selectAll('*').remove(); // Clear previous SVG content
+
+                svg.attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom)
+                    .append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+                svg.append('g')
+                    .attr('transform', `translate(0,${height})`)
+                    .call(xAxis)
+                    .selectAll('text')
+                    .attr('transform', 'translate(-10,0)rotate(-45)')
+                    .style('text-anchor', 'end');
+
+                svg.append('g')
+                    .call(yAxis);
+
+                svg.selectAll('bars')
+                    .data(d3Data)
+                    .enter()
+                    .append('rect')
+                    .attr('x', (d) => x(d.Data))
+                    .attr('y', (d) => y(+d.Value))
+                    .attr('width', x.bandwidth())
+                    .attr('height', (d) => height - y(+d.Value))
+                    .attr('fill', '#d04a35');
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+            }, []);
   return (
     <div className="container center">
         
@@ -72,11 +171,9 @@ function HomePage() {
                 </p>
             </section>
 
-            {/* <h1>My Budget Chart</h1>
-            <svg id="chart" width="600" height="600"></svg>
-            <button onclick="getChart()">Change Data</button>
-            <h1>Chart using D3JS</h1>
-            <svg id="chart-container" width="800" height="800"></svg> */}
+            <figure id="bar">
+                <svg ref={d3SvgRef}></svg>
+            </figure>
 
         </main>
 
